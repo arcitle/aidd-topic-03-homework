@@ -3,8 +3,10 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from dashboard.models import Share
+from dashboard.models import (Portfolio, PriceAlert, Share, Trade, WatchTarget)
 from dashboard.services.pricing import quotation_to_float
+from dashboard.tasks import evaluate_price_conditions
+from decimal import Decimal
 
 User = get_user_model()
 
@@ -167,6 +169,30 @@ class DashboardTests(APITestCase):
 
     def test_quotation_to_float(self):
         self.assertEqual(quotation_to_float(_Quotation(10, 500_000_000)), 10.5)
+
+    def test_watch_alert_is_deduplicated_until_condition_resets(self):
+        user = User.objects.create_user(username="watcher", email="watcher@example.com", password="pass")
+        target = WatchTarget.objects.create(user=user, share=self.apple_share,
+                                            direction=WatchTarget.ABOVE, target_price=Decimal("101"))
+        evaluate_price_conditions(self.apple_share, Decimal("102"))
+        evaluate_price_conditions(self.apple_share, Decimal("103"))
+        self.assertEqual(PriceAlert.objects.filter(target=target).count(), 1)
+        evaluate_price_conditions(self.apple_share, Decimal("99"))
+        evaluate_price_conditions(self.apple_share, Decimal("101"))
+        self.assertEqual(PriceAlert.objects.filter(target=target).count(), 2)
+
+    def test_investor_dashboard_requires_login_and_records_trade(self):
+        response = self.client.get(reverse("dashboard:investor"))
+        self.assertRedirects(response, reverse("dashboard:index"))
+        user = User.objects.create_user(username="investor", email="investor@example.com", password="pass")
+        self.client.force_login(user)
+        response = self.client.post(reverse("dashboard:investor"), {
+            "action": "trade", "share": self.apple_share.pk, "side": Trade.BUY,
+            "quantity": "2", "price": "90",
+        })
+        self.assertRedirects(response, reverse("dashboard:investor"))
+        portfolio = Portfolio.objects.get(user=user)
+        self.assertEqual(portfolio.trades.get().quantity, Decimal("2"))
 
 
 class AuthTests(APITestCase):

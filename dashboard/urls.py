@@ -6,12 +6,14 @@ from dashboard.views import (
     ShareDetailView,
     ShareListView,
     ShareUpdateView,
+    InvestorDashboardView,
 )
 
 app_name = "dashboard"
 
 urlpatterns = [
     path("", ShareListView.as_view(), name="index"),
+    path("investor/", InvestorDashboardView.as_view(), name="investor"),
     path("<int:pk>", ShareDetailView.as_view(), name="detail"),
     path("create", ShareCreateView.as_view(), name="create"),
     path("update/<int:pk>", ShareUpdateView.as_view(), name="update"),

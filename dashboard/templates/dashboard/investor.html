@@ -1,0 +1,28 @@
+{% extends "dashboard/base.html" %}
+{% block title %}<title>Мой инвесторский кабинет</title>{% endblock %}
+{% block content %}
+<h1>Инвесторский кабинет</h1>
+{% for message in messages %}<div class="alert alert-info">{{ message }}</div>{% endfor %}
+
+<div class="row">
+<section class="col-md-4"><h2>Ценовые оповещения</h2>
+<form method="post">{% csrf_token %}<input type="hidden" name="action" value="watch">{{ watch_form.as_p }}<button class="btn btn-primary">Добавить уровень</button></form>
+<ul>{% for target in watch_targets %}<li>{{ target.share.ticker }}: {{ target.get_direction_display }} {{ target.target_price }} {{ target.share.currency }}{% if target.condition_met %} — условие достигнуто{% endif %}
+<form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="action" value="delete_watch"><input type="hidden" name="id" value="{{ target.id }}"><button class="btn btn-sm btn-link">Удалить</button></form></li>{% empty %}<li>Уровни не заданы</li>{% endfor %}</ul>
+<h3>События</h3><ul>{% for alert in alerts %}<li>{{ alert.triggered_at }} — {{ alert.target.share.ticker }}: {{ alert.price }}</li>{% empty %}<li>Событий пока нет</li>{% endfor %}</ul></section>
+
+<section class="col-md-4"><h2>Виртуальный портфель</h2><form method="post">{% csrf_token %}<input type="hidden" name="action" value="trade">{{ trade_form.as_p }}<button class="btn btn-primary">Записать сделку</button></form>
+<table class="table"><tr><th>Акция</th><th>Кол-во</th><th>Средняя</th><th>Стоимость</th><th>Прибыль/убыток</th></tr>{% for item in holdings %}<tr><td>{{ item.share.ticker }}</td><td>{{ item.quantity }}</td><td>{{ item.average|floatformat:2 }}</td><td>{{ item.value|floatformat:2 }}</td><td>{{ item.pnl|floatformat:2 }}</td></tr>{% empty %}<tr><td colspan="5">Позиции отсутствуют</td></tr>{% endfor %}</table>
+<h3>История операций</h3><ul>{% for trade in trades %}<li>{{ trade.created_at }} — {{ trade.get_side_display }} {{ trade.quantity }} {{ trade.share.ticker }} по {{ trade.price }}{% if trade.strategy %} ({{ trade.strategy.name }}){% endif %}</li>{% empty %}<li>Операций пока нет</li>{% endfor %}</ul></section>
+
+<section class="col-md-4"><h2>Стратегии</h2><form method="post">{% csrf_token %}<input type="hidden" name="action" value="strategy">{{ strategy_form.as_p }}<button class="btn btn-primary">Создать стратегию</button></form>
+<ul>{% for strategy in strategies %}<li>{{ strategy.name }}: {{ strategy.share.ticker }}, {{ strategy.get_action_display }} при {{ strategy.get_condition_display }} {{ strategy.target_price }}; {% if strategy.active %}активна{% else %}выключена{% endif %}
+<form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="action" value="toggle_strategy"><input type="hidden" name="id" value="{{ strategy.id }}"><button class="btn btn-sm btn-link">Вкл./выкл.</button></form></li>{% empty %}<li>Стратегии не созданы</li>{% endfor %}</ul>
+<p>Стратегии создают виртуальные сделки при входе цены в условие. Условие повторно сработает после выхода цены из него.</p></section>
+</div>
+
+<h2>История рыночных цен</h2><form method="get" class="form-inline"><select class="form-control" name="share"><option value="">Все акции</option>{% for share in shares %}<option value="{{ share.id }}">{{ share.ticker }}</option>{% endfor %}</select><input class="form-control" type="date" name="from"><input class="form-control" type="date" name="to"><button class="btn btn-secondary">Показать</button></form>
+{% if history_graph %}{% autoescape off %}{{ history_graph }}{% endautoescape %}{% endif %}
+<h3>Изменение за период</h3><ul>{% for row in change_rows %}<li>{{ row.share.ticker }}: {{ row.absolute|floatformat:2 }} ({{ row.percent|floatformat:2 }}%)</li>{% empty %}<li>Для расчёта нужны минимум две точки цены.</li>{% endfor %}</ul>
+<table class="table table-striped"><tr><th>Время</th><th>Тикер</th><th>Цена</th></tr>{% for point in history %}<tr><td>{{ point.recorded_at }}</td><td>{{ point.share.ticker }}</td><td>{{ point.price }}</td></tr>{% empty %}<tr><td colspan="3">История появится после фонового обновления котировок.</td></tr>{% endfor %}</table>
+{% endblock %}
