@@ -20,9 +20,12 @@
     <div class="col3"></div>
     <div class="col3">
     <h5>Исторические данные: </h5>
+    <form method="get">Период: <select name="days"><option value="30" {% if days == 30 %}selected{% endif %}>30 дней</option><option value="90" {% if days == 90 %}selected{% endif %}>90 дней</option><option value="180" {% if days == 180 %}selected{% endif %}>180 дней</option><option value="365" {% if days == 365 %}selected{% endif %}>365 дней</option></select> <button class="btn btn-sm btn-primary">Показать</button></form>
+    {% if price_change != None %}<p>Изменение за период: {{ price_change|floatformat:4 }} ({{ price_change_pct|floatformat:2 }}%)</p>{% endif %}
  {% autoescape off %}
   {{ plot_div }}
   {% endautoescape %}
+    <table class="table"><tr><th>Время</th><th>Цена</th></tr>{% for point in history %}<tr><td>{{ point.recorded_at }}</td><td>{{ point.price }} {{ share.currency }}</td></tr>{% empty %}<tr><td colspan="2">Локальная история появится после обновления котировок.</td></tr>{% endfor %}</table>
     </div>
     <div class="col3"></div>
     </div>

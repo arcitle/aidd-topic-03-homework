@@ -1,0 +1,20 @@
+{% extends "dashboard/base.html" %}
+{% block title %}<title>Мои инвестиции</title>{% endblock %}
+{% block content %}
+<h1>Мои инвестиции</h1>
+{% for message in messages %}<div class="alert alert-warning">{{ message }}</div>{% endfor %}
+<div class="row">
+<section class="col-md-6"><h2>Наблюдение за акциями</h2>
+<form method="post" action="{% url 'dashboard:watch-add' %}">{% csrf_token %}{{ watch_form.as_p }}<button class="btn btn-primary">Добавить или изменить условие</button></form>
+<table class="table"><tr><th>Акция</th><th>Условие</th><th>Статус</th></tr>{% for item in watch_items %}<tr><td>{{ item.share.ticker }}</td><td>{{ item.direction }} {{ item.target_price|default:"без уровня" }}</td><td>{% if item.triggered_at %}Сработало {{ item.triggered_at }}{% else %}Ожидание{% endif %}</td></tr>{% empty %}<tr><td colspan="3">Список пуст</td></tr>{% endfor %}</table>
+<h3>Последние уведомления</h3><ul>{% for alert in alerts %}<li>{{ alert.item.share.ticker }}: {{ alert.price }} ({{ alert.triggered_at }})</li>{% empty %}<li>Уведомлений пока нет</li>{% endfor %}</ul></section>
+<section class="col-md-6"><h2>Виртуальный портфель</h2>
+<form method="post" action="{% url 'dashboard:transaction-add' %}">{% csrf_token %}{{ transaction_form.as_p }}<button class="btn btn-primary">Записать сделку</button></form>
+<table class="table"><tr><th>Тикер</th><th>Количество</th><th>Средняя цена</th><th>Стоимость</th><th>Прибыль/убыток</th></tr>{% for p in positions %}<tr><td>{{ p.share.ticker }}</td><td>{{ p.quantity }}</td><td>{{ p.average|floatformat:2 }}</td><td>{{ p.value|floatformat:2 }}</td><td>{{ p.pnl|floatformat:2 }}</td></tr>{% empty %}<tr><td colspan="5">Открытых позиций нет</td></tr>{% endfor %}</table>
+<h3>История операций</h3><ul>{% for tx in transactions %}<li>{{ tx.executed_at }} — {{ tx.get_side_display }} {{ tx.quantity }} {{ tx.share.ticker }} по {{ tx.price }}</li>{% empty %}<li>Операций пока нет</li>{% endfor %}</ul></section>
+</div>
+<h2>Симулятор стратегий</h2><p>Стратегии проверяются при обновлении котировок. Сделки автоматически записываются в виртуальный портфель.</p>
+<form method="post" action="{% url 'dashboard:strategy-add' %}">{% csrf_token %}{{ strategy_form.as_p }}<button class="btn btn-primary">Создать стратегию</button></form>
+<table class="table"><tr><th>Название</th><th>Акция</th><th>Сделка</th><th>Условие</th><th>Состояние</th></tr>{% for strategy in strategies %}<tr><td>{{ strategy.name }}</td><td>{{ strategy.share.ticker }}</td><td>{{ strategy.get_side_display }} {{ strategy.quantity }}</td><td>{{ strategy.operator }} {{ strategy.target_price }}</td><td>{% if strategy.last_triggered_at %}Сделка {{ strategy.last_triggered_at }}{% else %}Активна{% endif %}</td></tr>{% empty %}<tr><td colspan="5">Стратегий пока нет</td></tr>{% endfor %}</table>
+<h2>История рыночных цен</h2><p>Точки автоматически сохраняются при обновлении котировок.</p>
+{% endblock %}
