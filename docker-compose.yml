@@ -1,19 +1,67 @@
 services:
-
   db:
-    image: postgres
-    restart: always
+    image: postgres:16-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: "investing"
-      POSTGRES_USER: "postgres"
-      POSTGRES_PASSWORD: "postgres"
-
+      POSTGRES_DB: ${POSTGRES_DB:-investing}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
       - "5432:5432"
     volumes:
-        - ./:/app
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   redis:
-    image: redis
+    image: redis:7-alpine
+    restart: unless-stopped
     ports:
       - "6379:6379"
+
+  web:
+    build: .
+    restart: unless-stopped
+    command: sh -c "python manage.py migrate --noinput && python manage.py runserver 0.0.0.0:8000"
+    environment:
+      POSTGRES_HOST: db
+      CELERY_BROKER_URL: redis://redis:6379/0
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,web
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-local-development-key-change-me}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-1}
+      TINKOFF_TOKEN: ${TINKOFF_TOKEN:-}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  worker:
+    build: .
+    command: celery -A config worker -l info
+    environment:
+      POSTGRES_HOST: db
+      CELERY_BROKER_URL: redis://redis:6379/0
+      TINKOFF_TOKEN: ${TINKOFF_TOKEN:-}
+    depends_on:
+      - web
+      - redis
+
+  beat:
+    build: .
+    command: celery -A config beat -l info
+    environment:
+      POSTGRES_HOST: db
+      CELERY_BROKER_URL: redis://redis:6379/0
+      TINKOFF_TOKEN: ${TINKOFF_TOKEN:-}
+    depends_on:
+      - web
+      - redis
+
+volumes:
+  postgres_data:

@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from tinkoff.invest import Client
+from t_tech.invest import Client
 
 from config.settings import TINKOFF_TOKEN
 from dashboard.models import Share
