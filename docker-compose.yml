@@ -21,6 +21,11 @@ services:
     restart: unless-stopped
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   web:
     build: .
@@ -35,11 +40,21 @@ services:
       TINKOFF_TOKEN: ${TINKOFF_TOKEN:-}
     ports:
       - "8000:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/user/login/').read()"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     depends_on:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
 
   worker:
     build: .
@@ -49,8 +64,12 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       TINKOFF_TOKEN: ${TINKOFF_TOKEN:-}
     depends_on:
-      - web
-      - redis
+      web:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   beat:
     build: .
@@ -60,8 +79,12 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       TINKOFF_TOKEN: ${TINKOFF_TOKEN:-}
     depends_on:
-      - web
-      - redis
+      web:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
 volumes:
   postgres_data:

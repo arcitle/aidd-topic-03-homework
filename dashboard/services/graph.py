@@ -1,4 +1,5 @@
 from datetime import timedelta
+import logging
 
 from plotly.graph_objs import Scatter
 from plotly.offline import plot
@@ -7,18 +8,25 @@ from t_tech.invest.utils import now
 
 from config.settings import TINKOFF_TOKEN
 
+logger = logging.getLogger(__name__)
+
 
 def get_graph(share):
     x_data, y_data = [], []
     if TINKOFF_TOKEN:
-        with Client(TINKOFF_TOKEN) as client:
-            for candle in client.get_all_candles(
-                figi=share.figi,
-                from_=now() - timedelta(days=180),
-                interval=CandleInterval.CANDLE_INTERVAL_DAY,
-            ):
-                x_data.append(candle.time.date())
-                y_data.append(candle.close.units + candle.close.nano / 1_000_000_000)
+        try:
+            with Client(TINKOFF_TOKEN) as client:
+                for candle in client.get_all_candles(
+                    figi=share.figi,
+                    from_=now() - timedelta(days=180),
+                    interval=CandleInterval.CANDLE_INTERVAL_DAY,
+                ):
+                    x_data.append(candle.time.date())
+                    y_data.append(
+                        candle.close.units + candle.close.nano / 1_000_000_000
+                    )
+        except Exception:
+            logger.exception("Failed to load price history for share %s", share.pk)
     plot_div = plot(
         [
             Scatter(
@@ -31,7 +39,6 @@ def get_graph(share):
             )
         ],
         output_type="div",
-        show_link=False,
-        link_text="",
+        include_plotlyjs=False,
     )
     return plot_div

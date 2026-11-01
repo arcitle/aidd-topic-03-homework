@@ -28,16 +28,20 @@ class RegistrationForm(forms.Form):
     )
 
     def clean(self):
-        super().clean()
-        email = self.cleaned_data.get("email", "").strip().lower()
-        password1 = self.cleaned_data.get("password1")
-        password2 = self.cleaned_data.get("password2")
+        cleaned_data = super().clean()
+        if not cleaned_data:
+            return cleaned_data
+
+        email = cleaned_data.get("email", "").strip().lower()
+        cleaned_data["email"] = email
+        password1 = cleaned_data.get("password1")
+        password2 = cleaned_data.get("password2")
         if password1 and password2 and password1 != password2:
             errors = ["Введенные пароли не совпадают"]
             raise ValidationError(errors)
 
         if not email:
-            return self.cleaned_data
+            return cleaned_data
         user = User.objects.filter(email__iexact=email)
 
         if user:
@@ -47,12 +51,13 @@ class RegistrationForm(forms.Form):
             ]
             raise ValidationError(errors)
 
+        return cleaned_data
+
     def save(self):
         email = self.cleaned_data["email"]
         password = self.cleaned_data["password1"]
-        User.objects.create_user(email, email, password)
-        user = authenticate(username=email, password=password)
-        return user
+        user = User.objects.create_user(email, email, password)
+        return authenticate(username=email, password=password) or user
 
 
 class AuthForm(forms.Form):

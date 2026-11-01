@@ -14,11 +14,13 @@ class Command(BaseCommand):
             for share in shares.instruments:
                 Share.objects.get_or_create(
                     figi=share.figi,
-                    name=share.name,
-                    isin=share.isin,
-                    ticker=share.ticker,
-                    currency=share.currency,
-                    uid=share.uid,
+                    defaults={
+                        "name": share.name,
+                        "isin": share.isin,
+                        "ticker": share.ticker,
+                        "currency": share.currency,
+                        "uid": share.uid,
+                    },
                 )
 
 

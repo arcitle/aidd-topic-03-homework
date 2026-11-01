@@ -1,6 +1,10 @@
+import logging
+
 from t_tech.invest import Client
 
-from config.settings import TINKOFF_TOKEN, logger
+from config.settings import TINKOFF_TOKEN
+
+logger = logging.getLogger(__name__)
 
 
 def get_last_data(share):
