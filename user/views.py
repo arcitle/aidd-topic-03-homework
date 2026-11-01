@@ -5,32 +5,50 @@ from django.views.generic import View
 from .forms import AuthForm, RegistrationForm
 
 
+def _form_error_message(form):
+    non_field = form.non_field_errors()
+    if non_field:
+        return non_field[0]
+    for errors in form.errors.values():
+        if errors:
+            return errors[0]
+    return "Проверьте введённые данные."
+
+
 class AuthView(View):
     """Авторизация"""
 
     @staticmethod
     def get(request):
-        return render(request, "user/auth.html", {"form": AuthForm})
+        return render(request, "user/auth.html", {"form": AuthForm()})
 
     @staticmethod
     def post(request):
         form = AuthForm(request.POST)
-        user = authenticate(
-            request, username=form.data["email"].lower(), password=form.data["password"]
-        )
-
-        if user is not None:
-            login(request, user)
-            return redirect("dashboard:index")
-        else:
+        if not form.is_valid():
             return render(
                 request,
                 "user/auth.html",
-                {
-                    "form": form,
-                    "error": "Неверный логин или пароль! Повторите попытку.",
-                },
+                {"form": form, "error": _form_error_message(form)},
             )
+
+        user = authenticate(
+            request,
+            username=form.cleaned_data["email"].strip().lower(),
+            password=form.cleaned_data["password"],
+        )
+        if user is not None:
+            login(request, user)
+            return redirect("dashboard:index")
+
+        return render(
+            request,
+            "user/auth.html",
+            {
+                "form": form,
+                "error": "Неверный логин или пароль! Повторите попытку.",
+            },
+        )
 
 
 class RegistrationView(View):
@@ -38,7 +56,7 @@ class RegistrationView(View):
 
     @staticmethod
     def get(request):
-        return render(request, "user/registration.html", {"form": RegistrationForm})
+        return render(request, "user/registration.html", {"form": RegistrationForm()})
 
     @staticmethod
     def post(request):
@@ -47,12 +65,12 @@ class RegistrationView(View):
             user = form.save()
             login(request, user)
             return redirect("dashboard:index")
-        else:
-            return render(
-                request,
-                "user/registration.html",
-                {"form": form, "error": form.errors["__all__"].data[0].message},
-            )
+
+        return render(
+            request,
+            "user/registration.html",
+            {"form": form, "error": _form_error_message(form)},
+        )
 
 
 class LogoutView(View):

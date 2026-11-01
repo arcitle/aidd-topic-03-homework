@@ -1,8 +1,18 @@
+from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from dashboard.models import Share
+from dashboard.services.pricing import quotation_to_float
+
+User = get_user_model()
+
+
+class _Quotation:
+    def __init__(self, units, nano):
+        self.units = units
+        self.nano = nano
 
 
 class DashboardTests(APITestCase):
@@ -32,6 +42,22 @@ class DashboardTests(APITestCase):
     def test_share_list_html(self):
         response = self.client.get(reverse("dashboard:index"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertContains(response, self.apple_share.ticker)
+
+    def test_share_detail_html(self):
+        response = self.client.get(
+            reverse("dashboard:detail", args=[self.apple_share.pk])
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertContains(response, self.apple_share.name)
+
+    def test_share_detail_html_missing(self):
+        response = self.client.get(reverse("dashboard:detail", args=[99999]))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_create_requires_auth(self):
+        response = self.client.get(reverse("dashboard:create"))
+        self.assertRedirects(response, reverse("dashboard:index"))
 
     def test_share_list(self):
         response = self.client.get("/api/v1/shares/")
@@ -44,6 +70,7 @@ class DashboardTests(APITestCase):
         self.assertEqual(apple_share["name"], self.apple_share.name)
         self.assertEqual(apple_share["ticker"], self.apple_share.ticker)
         self.assertEqual(apple_share["currency"], self.apple_share.currency)
+        self.assertNotIn("uid", apple_share)
 
     def test_share_detail(self):
         response = self.client.get("/api/v1/shares/")
@@ -98,9 +125,26 @@ class DashboardTests(APITestCase):
         self.assertEqual(body["figi"], self.second_company["figi"])
         self.assertEqual(body["name"], self.second_company["name"])
         self.assertEqual(body["ticker"], self.second_company["ticker"])
+        self.assertNotIn("uid", body)
+        self.assertEqual(
+            Share.objects.get(pk=body["id"]).uid, self.second_company["uid"]
+        )
 
         response = self.client.get("/api/v1/shares/")
         self.assertEqual(len(response.data["results"]), 2)
+
+    def test_share_create_generates_uid(self):
+        payload = {
+            "figi": "BBG000B9XRY6",
+            "isin": "US0378331006",
+            "name": "NoUid",
+            "ticker": "NOUID",
+            "currency": "usd",
+        }
+        response = self.client.post("/api/v1/shares/", payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        created = Share.objects.get(pk=response.json()["id"])
+        self.assertTrue(created.uid)
 
     def test_share_create_invalid(self):
         response = self.client.post(
@@ -120,3 +164,47 @@ class DashboardTests(APITestCase):
     def test_share_delete_invalid(self):
         response = self.client.delete("/api/v1/shares/3/")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_quotation_to_float(self):
+        self.assertEqual(quotation_to_float(_Quotation(10, 500_000_000)), 10.5)
+
+
+class AuthTests(APITestCase):
+    def test_registration_and_login(self):
+        response = self.client.post(
+            reverse("user:registration"),
+            {
+                "email": "trader@example.com",
+                "password1": "SecretPass123",
+                "password2": "SecretPass123",
+            },
+        )
+        self.assertRedirects(response, reverse("dashboard:index"))
+        self.assertTrue(User.objects.filter(email="trader@example.com").exists())
+
+        self.client.get(reverse("user:logout"))
+        response = self.client.post(
+            reverse("user:auth"),
+            {"email": "trader@example.com", "password": "SecretPass123"},
+        )
+        self.assertRedirects(response, reverse("dashboard:index"))
+
+    def test_registration_password_mismatch(self):
+        response = self.client.post(
+            reverse("user:registration"),
+            {
+                "email": "trader@example.com",
+                "password1": "SecretPass123",
+                "password2": "OtherPass123",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertContains(response, "Введенные пароли не совпадают")
+
+    def test_login_invalid_credentials(self):
+        response = self.client.post(
+            reverse("user:auth"),
+            {"email": "missing@example.com", "password": "bad"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertContains(response, "Неверный логин или пароль")

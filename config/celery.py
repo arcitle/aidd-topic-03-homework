@@ -10,9 +10,10 @@ app.config_from_object("django.conf:settings", namespace="CELERY")
 
 app.autodiscover_tasks()
 
+# Имя расписания — every-5-min; ранее по ошибке стояло 10 секунд.
 app.conf.beat_schedule = {
     "add-every-5-min": {
         "task": "dashboard.tasks.update_last_price",
-        "schedule": 10.0,
+        "schedule": 300.0,
     },
 }
